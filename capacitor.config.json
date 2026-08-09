@@ -1,0 +1,6 @@
+{
+  "appId": "com.test",
+  "appName": "Socks5",
+  "webDir": "dist",
+  "bundledWebRuntime": false
+}
