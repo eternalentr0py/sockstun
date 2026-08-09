@@ -1,0 +1,66 @@
+name: Generate lockfile
+
+on:
+  workflow_dispatch:
+    inputs:
+      manager:
+        description: "Package manager (npm | pnpm | yarn)"
+        required: false
+        default: "npm"
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  lockfile:
+    name: Install and commit lockfile
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Enable corepack (pnpm/yarn)
+        run: corepack enable || true
+
+      - name: Generate lockfile
+        run: |
+          set -e
+          if [ ! -f package.json ]; then
+            echo "No package.json found at repo root." >&2
+            exit 1
+          fi
+          case "${{ inputs.manager }}" in
+            pnpm)
+              corepack prepare pnpm@latest --activate
+              pnpm install --lockfile-only
+              ;;
+            yarn)
+              corepack prepare yarn@stable --activate
+              yarn install --mode update-lockfile
+              ;;
+            *)
+              npm install --package-lock-only --ignore-scripts
+              ;;
+          esac
+
+      - name: Commit lockfile
+        run: |
+          set -e
+          git config user.name  "lovable-bot"
+          git config user.email "lovable-bot@users.noreply.github.com"
+          git add package-lock.json pnpm-lock.yaml yarn.lock 2>/dev/null || true
+          if git diff --cached --quiet; then
+            echo "No lockfile changes."
+            exit 0
+          fi
+          git commit -m "chore: regenerate lockfile [skip ci]"
+          git push
